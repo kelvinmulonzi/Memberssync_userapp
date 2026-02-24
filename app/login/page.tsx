@@ -514,7 +514,7 @@ const IconArrow = () => (
 );
 
 // ── API Base ──
-const API_BASE = "http://localhost:5000/api/v1";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api/v1";
 
 export default function AuthPage() {
   const [mode, setMode] = useState("login"); // "login" | "register"
@@ -541,7 +541,8 @@ export default function AuthPage() {
       // Use the login endpoint with membership_id
       const res = await fetch(`${API_BASE}/login`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", 
+  },
         body: JSON.stringify({ 
           membership_id: loginId
         }),
