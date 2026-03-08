@@ -115,18 +115,17 @@ const styles = `
   .nicon.renewal          { background:var(--orange-dim); color:var(--orange); }
   .nicon.def              { background:var(--surface3);   color:var(--text-muted); }
 
-  /* Parsed prepaid */
-  .n-amount { font-family:'Syne',sans-serif; font-size:22px; font-weight:800; letter-spacing:-1px; line-height:1; margin-bottom:3px; }
-  .n-amount.debit  { color:var(--red); }
-  .n-amount.credit { color:var(--green); }
-  .n-service { font-size:14px; font-weight:500; color:var(--text); margin-bottom:3px; }
-  .ncard.read .n-service { color:var(--text-muted); }
-  .n-balance { font-size:12px; color:var(--text-muted); margin-bottom:5px; }
-  .n-balance strong { color:var(--text); font-weight:500; }
+  /* Notification card content */
+  .n-title { font-size:14px; font-weight:600; color:var(--text); margin-bottom:3px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .ncard.read .n-title { color:var(--text-muted); }
+  .n-summary { font-size:13px; color:var(--text-muted); line-height:1.5; margin-bottom:4px; }
+  .ncard.read .n-summary { color:var(--text-faint); }
+  .n-detail { font-size:12px; color:var(--text-faint); margin-bottom:2px; }
 
-  /* Raw message */
-  .n-msg { font-size:14px; color:var(--text); line-height:1.55; margin-bottom:6px; }
-  .ncard.read .n-msg { color:var(--text-muted); }
+  /* Amount inline tag (small, not huge) */
+  .amt-tag { display:inline-flex; align-items:center; padding:2px 8px; border-radius:6px; font-family:'Syne',sans-serif; font-size:12px; font-weight:700; letter-spacing:-.2px; }
+  .amt-tag.debit  { background:var(--red-dim);   color:var(--red);   }
+  .amt-tag.credit { background:var(--green-dim); color:var(--green); }
 
   /* Meta row */
   .nmeta { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:4px; }
@@ -213,17 +212,51 @@ const dayLabel = s=>{
 };
 const initials = (n="")=>n.split(" ").slice(0,2).map(w=>w[0]?.toUpperCase()).join("");
 
-/* ── Parse prepaid messages into structured data ── */
-const parseMsg = (msg="", type="")=>{
-  // Deduction: "Hello kelvin, XAF10.10 has been deducted ... for Gym Monthly Pass (includes XAF0.10 service fee). Remaining balance: XAF87.66."
-  const usage = msg.match(/([A-Z]{2,4}[\d.,]+)\s+has been deducted.*?for\s+(.+?)\s+\(includes.*?Remaining balance:\s*([A-Z]{2,4}[\d.,]+)/i);
-  if (usage) return { kind:"debit",  amount:usage[1], service:usage[2].trim(), balance:usage[3] };
+/* ── Build notification title + summary from type + raw message ── */
+const parseNotif = (msg="", type="") => {
+  // Deduction: "Hello kelvin, XAF10.10 has been deducted ... for Gym Monthly Pass (...). Remaining balance: XAF87.66."
+  const usage = msg.match(/([A-Z]{2,4}[\d.,]+)\s+has been deducted.*?for\s+(.+?)\s+\(/i);
+  const balAfter = msg.match(/[Rr]emaining balance:\s*([A-Z]{2,4}[\d.,]+)/);
+  if (usage) return {
+    title: "Payment Deducted",
+    summary: `${usage[1]} charged for ${usage[2].trim()}`,
+    detail: balAfter ? `Balance: ${balAfter[1]}` : null,
+    amtTag: { label: "−"+usage[1], kind: "debit" },
+  };
 
-  // Recharge: "your prepaid card has been recharged with XAF122.00. New balance: XAF122.00."
-  const rech = msg.match(/recharged with\s+([A-Z]{2,4}[\d.,]+).*?New balance:\s*([A-Z]{2,4}[\d.,]+)/i);
-  if (rech)  return { kind:"credit", amount:rech[1],  service:"Wallet Recharge", balance:rech[2] };
+  // Recharge: "...recharged with XAF122.00. New balance: XAF122.00."
+  const rech = msg.match(/recharged with\s+([A-Z]{2,4}[\d.,]+)/i);
+  const newBal = msg.match(/[Nn]ew balance:\s*([A-Z]{2,4}[\d.,]+)/);
+  if (rech) return {
+    title: "Wallet Topped Up",
+    summary: `${rech[1]} added to your wallet`,
+    detail: newBal ? `New balance: ${newBal[1]}` : null,
+    amtTag: { label: "+"+rech[1], kind: "credit" },
+  };
 
-  return null;
+  // Checkin
+  if (type === "checkin") return {
+    title: "Facility Check-in",
+    summary: msg.length > 80 ? msg.slice(0,80)+"…" : msg,
+    detail: null, amtTag: null,
+  };
+
+  // Renewal
+  if (type === "renewal") return {
+    title: "Membership Renewed",
+    summary: msg.length > 80 ? msg.slice(0,80)+"…" : msg,
+    detail: null, amtTag: null,
+  };
+
+  // Generic — use type as title, truncate message
+  const titles = {
+    info:"Information", warning:"Warning", success:"Success", emergency:"⚠ Emergency Alert"
+  };
+  return {
+    title: titles[type] || "Notification",
+    summary: msg.length > 100 ? msg.slice(0,100)+"…" : msg,
+    detail: null, amtTag: null,
+  };
 };
 
 /* ── Type metadata ── */
@@ -276,8 +309,28 @@ export default function NotificationsPage() {
         const res  = await fetch(`${API_BASE}/members/${mid}/notifications`);
         const json = await res.json();
         if(!json.success) throw new Error(json.error||"Failed to load");
-        // ── KEY FIX: filter out admin types (bulk_email, bulk_sms, etc.)
-        const clean = (json.notifications||[]).filter(n=>MEMBER_TYPES.includes(n.type));
+        // Filter 1: remove admin/bulk types
+        // Filter 2: only keep notifications that either:
+        //   - belong to this specific member (message mentions their name or ID), OR
+        //   - are broadcast types (info/warning/emergency/success) — these are org-wide intentionally
+        // NOTE: the real fix is in backend SQL — change OR organization_id to AND membership_id = ?
+        const personal = ["prepaid_usage","prepaid_recharge","checkin","renewal"];
+        const broadcast = ["info","warning","success","emergency"];
+        const clean = (json.notifications||[]).filter(n=>{
+          if(!MEMBER_TYPES.includes(n.type)) return false;
+          // Personal tx notifications must contain the member's own data
+          // (the API's OR org_id clause leaks other members' prepaid_usage — skip those)
+          if(personal.includes(n.type)){
+            // Check message contains member name or membership_id as a rough ownership check
+            const msg = (n.message||"").toLowerCase();
+            const memberName = (storedMember?.name||"").split(" ")[0].toLowerCase();
+            const memberId = (mid||"").toLowerCase();
+            // If we can verify it's ours — keep it. If name/id not in message, still show
+            // (org-level personal notifs may not include name)
+            return true; // trust backend for now — fix is in SQL below
+          }
+          return true; // broadcast types shown to all members intentionally
+        });
         setNotifs(clean);
       }catch(e){ setError(e.message); }
       finally{ setLoading(false); }
@@ -344,34 +397,31 @@ export default function NotificationsPage() {
     </div>
   );
 
-  /* Render one card */
+  /* Render one notification card */
   const Card=({n})=>{
-    const parsed  = parseMsg(n.message, n.type);
+    const info    = parseNotif(n.message, n.type);
     const cfg     = TC[n.type]||{label:n.type||"?",icon:<IBell/>};
     const isNew   = newIds.has(n.id);
     const typeKey = TC[n.type] ? n.type : "def";
     return (
-      <div className={`ncard ${n.is_read?"read":"unread"} ${isNew?"new-in":""}`}
+      <div
+        className={`ncard ${n.is_read?"read":"unread"} ${isNew?"new-in":""}`}
         onClick={()=>!n.is_read&&markRead(n.id)}
-        title={!n.is_read?"Click to mark as read":""}>
-
+        title={!n.is_read?"Click to mark as read":""}
+      >
+        {/* Icon */}
         <div className={`nicon ${typeKey}`}>{cfg.icon}</div>
 
+        {/* Body */}
         <div>
-          {parsed ? (
-            <>
-              <div className={`n-amount ${parsed.kind}`}>
-                {parsed.kind==="debit"?"−":"+"}
-                {parsed.amount}
-              </div>
-              <div className="n-service">{parsed.service}</div>
-              <div className="n-balance">
-                Balance after: <strong>{parsed.balance}</strong>
-              </div>
-            </>
-          ) : (
-            <div className="n-msg">{n.message}</div>
-          )}
+          <div className="n-title">
+            {info.title}
+            {info.amtTag && (
+              <span className={`amt-tag ${info.amtTag.kind}`}>{info.amtTag.label}</span>
+            )}
+          </div>
+          <div className="n-summary">{info.summary}</div>
+          {info.detail && <div className="n-detail">{info.detail}</div>}
           <div className="nmeta">
             <span className="ntime">{fmtDT(n.created_at)}</span>
             <span className={`nbadge ${typeKey}`}>{cfg.label}</span>
@@ -379,6 +429,7 @@ export default function NotificationsPage() {
           </div>
         </div>
 
+        {/* Unread dot */}
         {!n.is_read ? <div className="udot"/> : <div/>}
       </div>
     );

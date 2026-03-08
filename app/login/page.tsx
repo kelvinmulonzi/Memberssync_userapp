@@ -514,7 +514,8 @@ const IconArrow = () => (
 );
 
 // ── API Base ──
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api/v1";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 
+  `http://${typeof window !== "undefined" ? window.location.hostname : "localhost"}:5000/api/v1`;
 
 export default function AuthPage() {
   const [mode, setMode] = useState("login"); // "login" | "register"
