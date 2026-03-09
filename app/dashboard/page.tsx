@@ -62,6 +62,35 @@ const styles = `
   .sb-mname { font-size:13px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .sb-mid { font-size:11px; color:var(--faint); }
 
+  /* Org switcher */
+  .sb-org-btn { display:flex; align-items:center; gap:8px; width:100%; padding:8px 12px;
+    border-radius:var(--r-sm); background:var(--bg); border:1px solid var(--border2);
+    cursor:pointer; margin-bottom:6px; transition:all .14s; text-align:left; }
+  .sb-org-btn:hover { border-color:var(--gold-border); background:var(--gold-bg); }
+  .sb-org-av { width:26px; height:26px; border-radius:6px; background:var(--gold-bg);
+    border:1.5px solid var(--gold-border); display:flex; align-items:center; justify-content:center;
+    font-family:'Syne',sans-serif; font-weight:700; font-size:10px; color:var(--gold-d); flex-shrink:0; }
+  .sb-org-name { font-size:12px; font-weight:600; color:var(--text); flex:1; white-space:nowrap;
+    overflow:hidden; text-overflow:ellipsis; }
+  .sb-org-label { font-size:10px; color:var(--faint); }
+  .sb-org-chevron { color:var(--faint); flex-shrink:0; }
+  .sb-org-chevron svg { width:12px; height:12px; }
+
+  /* Switcher dropdown */
+  .org-dropdown { background:var(--white); border:1px solid var(--border); border-radius:var(--r-sm);
+    overflow:hidden; margin-bottom:6px; box-shadow:0 4px 16px rgba(0,0,0,.06); }
+  .org-opt { display:flex; align-items:center; gap:10px; width:100%; padding:10px 12px;
+    border:none; background:none; cursor:pointer; transition:background .12s; text-align:left; }
+  .org-opt:hover { background:var(--bg); }
+  .org-opt.current { background:var(--gold-bg); }
+  .org-opt-av { width:28px; height:28px; border-radius:7px; background:var(--gold-bg);
+    border:1.5px solid var(--gold-border); display:flex; align-items:center; justify-content:center;
+    font-family:'Syne',sans-serif; font-weight:700; font-size:10px; color:var(--gold-d); flex-shrink:0; }
+  .org-opt-name { font-size:13px; font-weight:600; color:var(--text); flex:1; white-space:nowrap;
+    overflow:hidden; text-overflow:ellipsis; }
+  .org-opt-check { color:var(--gold-d); flex-shrink:0; }
+  .org-opt-check svg { width:13px; height:13px; }
+
   /* ── MAIN ── */
   .main { padding:40px 44px; overflow-y:auto; }
 
@@ -398,10 +427,17 @@ export default function Dashboard() {
   const [lC,setLC] = useState(true);
   const [lN,setLN] = useState(true);
 
-  const [chartMode, setChartMode] = useState("week");
-  const [showModal, setShowModal] = useState(false);
-  const [topupAmt,  setTopupAmt]  = useState("");
-  const [selAmt,    setSelAmt]    = useState(null);
+  const [chartMode,   setChartMode]   = useState("week");
+  const [showModal,   setShowModal]   = useState(false);
+  const [topupAmt,    setTopupAmt]    = useState("");
+  const [selAmt,      setSelAmt]      = useState(null);
+  const [showOrgDrop, setShowOrgDrop] = useState(false);
+
+  // All memberships this user has (for org switching)
+  const allMemberships = typeof window !== "undefined"
+    ? JSON.parse(localStorage.getItem("ms_memberships") || "null") || [stored]
+    : [stored];
+  const multiOrg = allMemberships && allMemberships.length > 1;
 
   useEffect(()=>{ if(!mid) window.location.href="/"; },[]);
 
@@ -436,6 +472,12 @@ export default function Dashboard() {
   const currentIn= !!(checkins||[])[0]?.status==="checked_in"&&!(checkins||[])[0]?.checkout_time;
 
   const nav = href => () => window.location.href = href;
+  const orgInitials = n => (n||"?").split(" ").slice(0,2).map(w=>w[0]?.toUpperCase()).join("").slice(0,2);
+
+  const switchOrg = m => {
+    localStorage.setItem("ms_member", JSON.stringify(m));
+    window.location.reload();
+  };
   const Sk  = ({w="100%",h=14,r=6}) => <span className="sk" style={{width:w,height:h,borderRadius:r}}/>;
 
   /* ── QR Code — real scannable QR via qrserver.com API ── */
@@ -510,9 +552,58 @@ export default function Dashboard() {
           </nav>
 
           <div className="sb-footer">
-            <button className="sb-signout" onClick={()=>{localStorage.removeItem("ms_member");window.location.href="/";}}>
+
+            {/* Org switcher — only shows if user has multiple memberships */}
+            {multiOrg && (
+              <div style={{marginBottom:6}}>
+                <button className="sb-org-btn" onClick={()=>setShowOrgDrop(v=>!v)}>
+                  <div className="sb-org-av">{orgInitials(stored?.organization_name||"")}</div>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div className="sb-org-name">{stored?.organization_name||"Organization"}</div>
+                    <div className="sb-org-label">Switch membership</div>
+                  </div>
+                  <div className="sb-org-chevron">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                      <path d={showOrgDrop?"M18 15l-6-6-6 6":"M6 9l6 6 6-6"}/>
+                    </svg>
+                  </div>
+                </button>
+
+                {showOrgDrop && (
+                  <div className="org-dropdown">
+                    {(allMemberships||[]).map(m=>(
+                      <button
+                        key={m.membership_id}
+                        className={`org-opt${m.membership_id===mid?" current":""}`}
+                        onClick={()=>{ setShowOrgDrop(false); if(m.membership_id!==mid) switchOrg(m); }}
+                      >
+                        <div className="org-opt-av">{orgInitials(m.organization_name||"")}</div>
+                        <div style={{flex:1,minWidth:0}}>
+                          <div className="org-opt-name">{m.organization_name||"Organization"}</div>
+                          <div style={{fontSize:10,color:"var(--faint)"}}>{m.membership_id}</div>
+                        </div>
+                        {m.membership_id===mid && (
+                          <div className="org-opt-check">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                              <path d="M20 6 9 17l-5-5"/>
+                            </svg>
+                          </div>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <button className="sb-signout" onClick={()=>{
+              localStorage.removeItem("ms_member");
+              localStorage.removeItem("ms_memberships");
+              window.location.href="/";
+            }}>
               <ILogout/>Sign Out
             </button>
+
             <div className="sb-member">
               <div className="sb-av">
                 {profile?.photo_url?<img src={profile.photo_url} alt={name}/>:initials(name)}
