@@ -1,7 +1,8 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 
-const API_BASE = "http://localhost:5000/api/v1";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ||
+  `http://${typeof window !== "undefined" ? window.location.hostname : "localhost"}:5000/api/v1`;
 
 /* ─────────────────────────────── STYLES ─────────────────────────────── */
 const styles = `
@@ -9,28 +10,16 @@ const styles = `
 
   *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
-  :root {
-    --black:        #09090b;
-    --surface:      #111113;
-    --surface2:     #18181b;
-    --surface3:     #1f1f23;
-    --border:       #27272a;
-    --border-glow:  rgba(200,169,110,0.25);
-    --text:         #f4f0e8;
-    --text-muted:   #71717a;
-    --text-faint:   #3f3f46;
-    --gold:         #c8a96e;
-    --gold-light:   #e0c48a;
-    --gold-dim:     rgba(200,169,110,0.10);
-    --gold-dim2:    rgba(200,169,110,0.06);
-    --red:          #ef4444;
-    --red-dim:      rgba(239,68,68,0.08);
-    --green:        #22c55e;
-    --green-dim:    rgba(34,197,94,0.08);
-    --blue:         #60a5fa;
-    --radius:       14px;
-    --radius-sm:    8px;
-  }
+ :root {
+  --black:#f7f6f3; --surface:#ffffff; --surface2:#f7f6f3; --surface3:#f0ede8;
+  --border:#e8e6e1; --text:#1a1a18; --text-muted:#7a7870; --text-faint:#b8b5ae;
+  --gold:#c8a96e; --gold-light:#e0c48a; --gold-dim:rgba(200,169,110,0.09); --gold-dim2:rgba(200,169,110,0.06);
+  --red:#c0392b; --red-dim:rgba(192,57,43,0.07);
+  --green:#2a7d4f; --green-dim:rgba(42,125,79,0.08);
+  --blue:#2563a8; --blue-dim:rgba(37,99,168,0.08);
+  --orange:#c2610c; --orange-dim:rgba(194,97,12,0.08);
+  --radius:14px; --radius-sm:8px;
+}
 
   body, .page-root {
     font-family: 'DM Sans', sans-serif;

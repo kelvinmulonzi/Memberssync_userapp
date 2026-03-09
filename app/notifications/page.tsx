@@ -1,7 +1,8 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 
-const API_BASE = "http://localhost:5000/api/v1";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ||
+  `http://${typeof window !== "undefined" ? window.location.hostname : "localhost"}:5000/api/v1`;
 
 // Only show these types to members — bulk_email/bulk_sms are admin logs
 const MEMBER_TYPES = ["prepaid_usage","prepaid_recharge","info","warning","success","emergency","checkin","renewal"];
@@ -11,17 +12,16 @@ const styles = `
   @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap');
   *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
 
-  :root {
-    --black:#09090b; --surface:#111113; --surface2:#18181b; --surface3:#1f1f23;
-    --border:#27272a; --text:#f4f0e8; --text-muted:#71717a; --text-faint:#3f3f46;
-    --gold:#c8a96e; --gold-light:#e0c48a; --gold-dim:rgba(200,169,110,.10); --gold-dim2:rgba(200,169,110,.06);
-    --red:#ef4444; --red-dim:rgba(239,68,68,.08);
-    --green:#22c55e; --green-dim:rgba(34,197,94,.08);
-    --blue:#60a5fa; --blue-dim:rgba(96,165,250,.08);
-    --yellow:#eab308; --yellow-dim:rgba(234,179,8,.09);
-    --orange:#f97316; --orange-dim:rgba(249,115,22,.08);
-    --radius:14px; --radius-sm:8px;
-  }
+:root {
+  --black:#f7f6f3; --surface:#ffffff; --surface2:#f7f6f3; --surface3:#f0ede8;
+  --border:#e8e6e1; --text:#1a1a18; --text-muted:#7a7870; --text-faint:#b8b5ae;
+  --gold:#c8a96e; --gold-light:#e0c48a; --gold-dim:rgba(200,169,110,0.09); --gold-dim2:rgba(200,169,110,0.06);
+  --red:#c0392b; --red-dim:rgba(192,57,43,0.07);
+  --green:#2a7d4f; --green-dim:rgba(42,125,79,0.08);
+  --blue:#2563a8; --blue-dim:rgba(37,99,168,0.08);
+  --orange:#c2610c; --orange-dim:rgba(194,97,12,0.08);
+  --radius:14px; --radius-sm:8px;
+}
 
   body, .page-root { font-family:'DM Sans',sans-serif; background:var(--black); color:var(--text); min-height:100vh; }
   .page-root { display:grid; grid-template-columns:260px 1fr; min-height:100vh; }
@@ -199,6 +199,7 @@ const IPlus    = ()=><I d="M12 5v14M5 12h14" strokeWidth="2.2"/>;
 const IRefresh = ()=><I d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>;
 const IWifi    = ()=><I d={<><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></>}/>;
 const IOk      = ()=><I d={<><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></>}/>;
+
 
 /* ── Helpers ── */
 const fmtDT = s=>{ try{ return new Date(s).toLocaleString("en-GB",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"}); }catch{ return s||""; }};
@@ -539,6 +540,7 @@ export default function NotificationsPage() {
           )}
         </main>
       </div>
+      
 
       {toast&&(
         <div className="twrap">

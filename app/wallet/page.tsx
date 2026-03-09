@@ -1,23 +1,25 @@
 "use client";
 import { useState, useEffect } from "react";
 
-const API_BASE = "http://localhost:5000/api/v1";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ||
+  `http://${typeof window !== "undefined" ? window.location.hostname : "localhost"}:5000/api/v1`;
+
 
 /* ─────────────────────────── STYLES ─────────────────────────── */
 const styles = `
   @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap');
   *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
 
-  :root {
-    --black:#09090b; --surface:#111113; --surface2:#18181b; --surface3:#1f1f23;
-    --border:#27272a; --text:#f4f0e8; --text-muted:#71717a; --text-faint:#3f3f46;
-    --gold:#c8a96e; --gold-light:#e0c48a; --gold-dim:rgba(200,169,110,0.10); --gold-dim2:rgba(200,169,110,0.06);
-    --red:#ef4444; --red-dim:rgba(239,68,68,0.08);
-    --green:#22c55e; --green-dim:rgba(34,197,94,0.08);
-    --blue:#60a5fa; --blue-dim:rgba(96,165,250,0.08);
-    --orange:#f97316; --orange-dim:rgba(249,115,22,0.08);
-    --radius:14px; --radius-sm:8px;
-  }
+ :root {
+  --black:#f7f6f3; --surface:#ffffff; --surface2:#f7f6f3; --surface3:#f0ede8;
+  --border:#e8e6e1; --text:#1a1a18; --text-muted:#7a7870; --text-faint:#b8b5ae;
+  --gold:#c8a96e; --gold-light:#e0c48a; --gold-dim:rgba(200,169,110,0.09); --gold-dim2:rgba(200,169,110,0.06);
+  --red:#c0392b; --red-dim:rgba(192,57,43,0.07);
+  --green:#2a7d4f; --green-dim:rgba(42,125,79,0.08);
+  --blue:#2563a8; --blue-dim:rgba(37,99,168,0.08);
+  --orange:#c2610c; --orange-dim:rgba(194,97,12,0.08);
+  --radius:14px; --radius-sm:8px;
+}
 
   body, .page-root { font-family:'DM Sans',sans-serif; background:var(--black); color:var(--text); min-height:100vh; }
   .page-root { display:grid; grid-template-columns:260px 1fr; min-height:100vh; }
@@ -63,10 +65,12 @@ const styles = `
   /* Balance cards */
   .balance-row { display:grid; grid-template-columns:1.2fr 1fr 1fr; gap:20px; margin-bottom:28px; animation:fadeUp .4s .1s ease both; }
 
-  .bcard { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:26px 28px; position:relative; overflow:hidden; transition:border-color .2s; }
-  .bcard:hover { border-color:rgba(200,169,110,.2); }
-  .bcard.primary { background:linear-gradient(135deg,#1a1508 0%,#1c160a 60%,#111113 100%); border-color:rgba(200,169,110,.25); }
-  .bcard.primary::before { content:''; position:absolute; top:-40px; right:-40px; width:160px; height:160px; background:radial-gradient(circle,rgba(200,169,110,.12) 0%,transparent 70%); pointer-events:none; }
+ .bcard.primary { background:var(--text); border-color:var(--text); }
+.bcard.primary::before { content:''; position:absolute; top:-40px; right:-40px; width:160px; height:160px; background:radial-gradient(circle,rgba(200,169,110,.15) 0%,transparent 70%); pointer-events:none; }
+.bcard.primary .bc-label { color:rgba(255,255,255,.45); }
+.bcard.primary .bc-amount { color:#ffffff; }
+.bcard.primary .bc-amount .cur { color:rgba(255,255,255,.45); }
+.bcard.primary .bc-sub { color:rgba(255,255,255,.4); }
 
   .bc-label { font-size:11px; font-weight:600; letter-spacing:2px; text-transform:uppercase; color:var(--text-faint); margin-bottom:14px; display:flex; align-items:center; gap:8px; }
   .bc-label svg { width:13px; height:13px; color:var(--gold); }
@@ -129,10 +133,18 @@ const styles = `
   .sk { background:linear-gradient(90deg,var(--surface2) 25%,var(--surface3) 50%,var(--surface2) 75%); background-size:200% 100%; border-radius:6px; animation:shimmer 1.4s ease-in-out infinite; }
   @keyframes shimmer { from{background-position:200% 0} to{background-position:-200% 0} }
   @keyframes fadeUp  { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:translateY(0)} }
+  
+  .mobile-nav { display:none; position:fixed; bottom:0; left:0; right:0; background:var(--surface); border-top:1px solid var(--border); z-index:50; }
+.mobile-nav-row { display:flex; justify-content:space-around; padding:8px 0 max(env(safe-area-inset-bottom),8px); }
+.mn { display:flex; flex-direction:column; align-items:center; gap:3px; padding:6px 12px; border:none; background:none; cursor:pointer; color:var(--text-faint); font-family:'DM Sans',sans-serif; font-size:10px; font-weight:600; letter-spacing:.3px; transition:color .14s; }
+.mn svg { width:19px; height:19px; }
+.mn.on { color:var(--gold); }
 
+  
   @media(max-width:768px){
     .page-root{grid-template-columns:1fr} .sidebar{display:none}
-    .main{padding:28px 20px 60px; max-width:100%}
+    .main{padding:28px 20px 80px; max-width:100%}
+    .mobile-nav{ display:block }
     .balance-row{grid-template-columns:1fr}
     .tx-head{display:none}
     .tx-row{grid-template-columns:1fr auto}
@@ -391,6 +403,24 @@ export default function WalletPage() {
               );
             })}
           </div>
+          <nav className="mobile-nav">
+  <div className="mobile-nav-row">
+    {[
+      {icon:<IDash/>,    label:"Home",    href:"/dashboard"},
+      {icon:<IWallet/>,  label:"Wallet",  href:"/wallet",  on:true},
+      {icon:<ICheckin/>, label:"Visits",  href:"/checkin"},
+      {icon:<IBell/>,    label:"Alerts",  href:"/notifications"},
+      {icon:<IUser/>,    label:"Profile", href:"/profile"},
+    ].map(item=>(
+      <button key={item.label} className={`mn${item.on?" on":""}`}
+        onClick={()=>window.location.href=item.href}>
+        {item.icon}{item.label}
+      </button>
+    ))}
+  </div>
+</nav>
+        
+          
         </main>
       </div>
     </>
