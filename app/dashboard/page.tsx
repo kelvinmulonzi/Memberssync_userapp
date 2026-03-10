@@ -771,7 +771,7 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* TOP UP MODAL */}
+      {/* Top up */}
       {showModal&&(
         <div className="overlay" onClick={()=>setShowModal(false)}>
           <div className="modal" onClick={e=>e.stopPropagation()}>
